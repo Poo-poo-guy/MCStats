@@ -30,3 +30,5 @@ The dashboard below is opened from the title screen, so gameplay-only statistics
 ![Dashboard](screenshots/dashboard.png)
 
 ![HUD Studio](screenshots/studio.png)
+
+The corrective rendering/FPS work has newer results in [RENDERING-QUALITY.md](RENDERING-QUALITY.md). Its build executes 20 cases; the earlier results above describe the initial implementation, not the current renderer.

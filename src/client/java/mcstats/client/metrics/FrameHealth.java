@@ -31,15 +31,19 @@ public final class FrameHealth {
         double stallHealth = clamp(1 - stallMillis / (snapshot.seconds() * 1000) / .1);
         double target = clamp((1000 / median) / targetFps);
         double score = 100 * (.35 * consistency + .30 * stutterHealth + .25 * target + .10 * stallHealth);
-        int[] thresholds = {50, 75, 90};
-        int next = category == null ? 0 : category.ordinal();
-        if (category == null) { while (next < 3 && score >= thresholds[next]) next++; }
-        else {
-            while (next < 3 && score >= thresholds[next] + 2) next++;
-            while (next > 0 && score < thresholds[next - 1] - 2) next--;
-        }
-        category = Category.values()[next];
+        category=classify(score,category);
         return new Result(true, score, category, consistency, stutterHealth, target, stallHealth, stutters, stalls);
+    }
+    private static final Category[] CATEGORIES=Category.values();
+    private static final int[] THRESHOLDS={50,75,90};
+    public static Category classify(double score,Category previous){
+        int next=previous==null?0:previous.ordinal();
+        if(previous==null){while(next<3&&score>=THRESHOLDS[next])next++;}
+        else{
+            while(next<3&&score>=THRESHOLDS[next]+2)next++;
+            while(next>0&&score<THRESHOLDS[next-1]-2)next--;
+        }
+        return CATEGORIES[next];
     }
     private static double clamp(double x) { return Math.max(0, Math.min(1, x)); }
     public void reset() { category = null; }

@@ -8,6 +8,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Frame data stays on the client thread. JVM polling is isolated on one daemon worker. */
 public final class Monitor implements AutoCloseable {
     private final FrameWindow window = new FrameWindow(65536);
+    private final FrameRate rate=new FrameRate();
+    private long lastPresentation;
+    public double measuredFps=Double.NaN,sessionFps=Double.NaN;
     private final FrameHealth scoring = new FrameHealth();
     private final JvmTelemetry telemetry = new JvmTelemetry();
     private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
@@ -26,7 +29,11 @@ public final class Monitor implements AutoCloseable {
     public Monitor() { for (double[] h : history) java.util.Arrays.fill(h,Double.NaN); }
     public void frame(Minecraft mc, HudConfig config, boolean visible) {
         long now=System.nanoTime();
-        currentFps=visible?mc.getFps():-1;
+        currentFps=visible?mc.getFps():-1; // Reference counter only; the HUD uses our measured window.
+        if(visible){
+            rate.record(now);
+            if(now-lastPresentation>=250_000_000L){measuredFps=rate.publish(now);sessionFps=rate.sessionFps();lastPresentation=now;}
+        }else{rate.reset();measuredFps=sessionFps=Double.NaN;}
         renderDistance=mc.options.renderDistance().get();
         if (visible && now-lastPoll>=config.monitoring.pollMillis*1_000_000L && polling.compareAndSet(false,true)) {
             lastPoll=now;
@@ -51,7 +58,7 @@ public final class Monitor implements AutoCloseable {
             var connection=mc.getConnection();
             var info=connection==null||mc.player==null?null:connection.getPlayerInfo(mc.player.getUUID());
             ping=info==null?-1:info.getLatency(); renderDistance=mc.options.renderDistance().get();
-            history[0][historyHead]=frames.averageFps(); history[1][historyHead]=frames.count()==0?Double.NaN:1000/frames.averageFps();
+            history[0][historyHead]=measuredFps; history[1][historyHead]=frames.count()==0?Double.NaN:1000/frames.averageFps();
             history[2][historyHead]=jvm==null?Double.NaN:jvm.heapUsed()/1048576.;
             history[3][historyHead]=health.available()?health.score():Double.NaN;
             historyNanos=now;historyHead=(historyHead+1)%120; historySize=Math.min(120,historySize+1);

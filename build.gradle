@@ -84,7 +84,7 @@ publishing {
 sourceSets {
     coreTest {
         java.srcDir 'src/testCore/java'
-        compileClasspath += sourceSets.client.output + sourceSets.main.output
+        compileClasspath += sourceSets.client.runtimeClasspath + sourceSets.main.output
         runtimeClasspath += compileClasspath
     }
 }
