@@ -1,38 +1,33 @@
 {
-	"schemaVersion": 1,
-	"id": "mcstats",
-	"version": "${version}",
-	"name": "MCStats+",
-	"description": "This is an example description! Tell everyone what your mod is about!",
-	"authors": [
-		"Me!"
-	],
-	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
-	},
-	"license": "CC0-1.0",
-	"icon": "assets/mcstats/icon.png",
-	"environment": "*",
-	"entrypoints": {
-		"main": [
-			"mcstats.MCStats"
-		],
-		"client": [
-			"mcstats.client.MCStatsClient"
-		]
-	},
-	"mixins": [
-		"mcstats.mixins.json",
-		{
-			"config": "mcstats.client.mixins.json",
-			"environment": "client"
-		}
-	],
-	"depends": {
-		"fabricloader": ">=0.20.1",
-		"minecraft": "~26.3",
-		"java": ">=25",
-		"fabric-api": "*"
-	}
+  "schemaVersion": 1,
+  "id": "mcstats",
+  "version": "${version}",
+  "name": "MCStats+",
+  "description": "A customizable glass performance HUD with honest telemetry and FrameHealth smoothness scoring.",
+  "authors": [
+    "MCStats+ contributors"
+  ],
+  "contact": {
+    "sources": "https://github.com/Poo-poo-guy/MCStats"
+  },
+  "license": "CC0-1.0",
+  "icon": "assets/mcstats/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "mcstats.client.MCStatsClient"
+    ]
+  },
+  "mixins": [
+    {
+      "config": "mcstats.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "~26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
 }

@@ -79,3 +79,25 @@ publishing {
 		// retrieving dependencies.
 	}
 }
+
+// Core regression tests require no test framework or additional runtime dependencies.
+sourceSets {
+    coreTest {
+        java.srcDir 'src/testCore/java'
+        compileClasspath += sourceSets.client.output + sourceSets.main.output
+        runtimeClasspath += compileClasspath
+    }
+}
+
+tasks.register('coreTest', JavaExec) {
+    dependsOn tasks.named('coreTestClasses')
+    classpath = sourceSets.coreTest.runtimeClasspath
+    mainClass = 'mcstats.CoreTests'
+}
+tasks.named('check') { dependsOn tasks.named('coreTest') }
+
+tasks.register('coreBenchmark', JavaExec) {
+    dependsOn tasks.named('coreTestClasses')
+    classpath = sourceSets.coreTest.runtimeClasspath
+    mainClass = 'mcstats.CoreBenchmark'
+}
