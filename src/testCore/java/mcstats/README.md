@@ -1,0 +1,1 @@
+Run `./gradlew coreTest` (also included in `build`). Every named case executes explicit assertions and aborts on failure; Java `-ea` is not required. Tests cover calculations, percentile semantics, bounded storage, invalid inputs, spring invariance/retargeting, and atomic profile persistence. Minecraft rendering and input require a client smoke test separately.

@@ -3,7 +3,7 @@
 	"package": "mcstats.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
-		"ExampleClientMixin"
+		"FrameSamplerMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1
