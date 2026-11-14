@@ -15,7 +15,7 @@ Use **JDK 25** and the committed **Gradle 9.8.2** wrapper:
 
 The installable jar is `build/libs/mcstats-1.0.0.jar`. Install it with Fabric Loader **0.20.1** and Fabric API **0.166.2+26.3**. The target versions have not been substituted. Minecraft 26.3 uses official unobfuscated names; no additional mappings dependency is needed. The GUI uses `GuiGraphicsExtractor` and Fabric's HUD element registry.
 
-`build` runs 15 dependency-free core regression cases through `check`. `coreBenchmark` measures ring-buffer writes and scoring only; it is **not** a Minecraft FPS-overhead benchmark. Behind an HTTPS proxy, Java needs explicit HTTP/HTTPS proxy host/port properties and the environment's trusted CA store. Keep TLS and checksum verification enabled.
+`build` runs 20 executable regression cases through `check`. `coreBenchmark` measures ring-buffer writes and scoring only; it is **not** a Minecraft FPS-overhead benchmark. Behind an HTTPS proxy, Java needs explicit HTTP/HTTPS proxy host/port properties and the environment's trusted CA store. Keep TLS and checksum verification enabled.
 
 ## Controls
 
@@ -36,7 +36,7 @@ The default HUD is a single FrameHealth pill. For a tiny **FPS-only** HUD, open 
 
 Select a widget, drag it to move, or drag its lower-right handle to resize. Arrow keys nudge one GUI pixel. Snap aligns to screen edges and center lines, with guides while dragging. Coordinates are fractions of the available screen area: left/right and top/bottom anchoring survive resolution and GUI-scale changes. Widgets assigned the same nonzero group move together; group 0 is independent.
 
-Add up to 32 widgets, remove any individually, change their metric, and choose text, pill, card, graph or gauge presentation. Graphs are offered for FPS, frame time, heap and health; the gauge is for FrameHealth. Appearance controls include four bundled DejaVu TrueType fonts (sans, medium, mono and serif), scale, padding, corner radius, opacity and border. Copy a six-digit hex color and use **Widget accent** to color the selection.
+Add up to 32 widgets, remove any individually, change their metric, and choose text, pill, card, graph or gauge presentation. Graphs are offered for FPS, frame time, heap and health; the gauge is for FrameHealth. Appearance controls include four bundled DejaVu TrueType fonts (sans, medium, mono and compact), scale, padding, corner radius, opacity and border. Copy a six-digit hex color and use **Widget accent** to color the selection.
 
 Appearance contains dark/light/custom themes, custom background/text/accent colors, optional reflections, reduced motion, FPS target, and Eco/Balanced/Responsive polling. The HUD uses a translucent fallback rather than a gameplay framebuffer blur. Optional blur applies to the expanded dashboard only.
 
@@ -48,8 +48,8 @@ Exported Java-properties profiles also expose exact numeric settings: `targetFps
 
 ## What is measured
 
-- Frame intervals at the beginning of each client `runTick`; these include the prior frame's CPU work, presentation and limiter wait. They are not GPU execution times.
-- Minecraft's current FPS counter, exponentially smoothed reciprocal frame time, rolling average FPS (`1000 / mean frame milliseconds`), and 1% low (`1000 / mean of the slowest ceil(1%) durations`).
+- Frame intervals at the completed-frame counter increment in `renderFrame`, the same point used by Minecraft’s F3 FPS counter. Intervals include presentation and limiter wait. They are not GPU execution times.
+- A half-second completed-frame FPS window, Minecraft’s reference counter for diagnostics, exponentially smoothed reciprocal frame time, rolling average FPS (`1000 / mean frame milliseconds`), and 1% low (`1000 / mean of the slowest ceil(1%) durations`).
 - Heap used/max and cumulative JVM garbage-collection count/time.
 - Process/system CPU load where the platform MXBean supplies it.
 - Player-list latency where available, and configured render distance.
@@ -77,3 +77,9 @@ Initial categories: Excellent ≥90, Good ≥75, Fair ≥50, Poor <50. After ini
 `metrics/` owns collection, bounded history, telemetry and scoring; `animation/` contains an exact critically damped spring; `config/` handles profiles; `ui/` contains native glass geometry, HUD rendering, dashboard and editor. Spring interpolation drives panel opening/closing, widget position/size/opacity, score, status color and button hover, with an immediate reduced-motion mode. Text labels are cached between presentation updates. Fonts include their own redistribution license in the font resource directory; the project code remains CC0.
 
 This implementation prioritizes the working core. Graphs scroll measured samples without inventing interpolated values. Full widget-to-dashboard morphing, arbitrary widget-to-widget magnetic guides, per-widget background blur, and optional native GPU integrations remain follow-up work. Sodium/Iris compatibility and the <1% total FPS-overhead goal require gameplay benchmarking on supported hardware; neither is assumed from a successful build. No heavyweight UI framework or new runtime dependency is introduced.
+
+## Rendering and FPS quality correction
+
+See [the rendering audit and test evidence](docs/RENDERING-QUALITY.md). Rounded panels and arcs now submit native batched geometry with a one-physical-pixel coverage fringe, instead of GUI-pixel scanlines or dotted circles. TrueType glyphs use higher-resolution cached native atlases and framebuffer-aligned origins. The compact card and detailed gauge both contain a continuous circular indicator with centered, tabular score digits.
+
+FPS headlines use a half-second completed-frame window, independently published at 4 Hz. The 30-second average, session average and 1% low remain separate statistics. Scoring consumes completed-frame durations, never the displayed FPS number.

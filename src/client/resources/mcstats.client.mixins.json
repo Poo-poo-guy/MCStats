@@ -1,14 +1,15 @@
 {
-	"required": true,
-	"package": "mcstats.client.mixin",
-	"compatibilityLevel": "JAVA_25",
-	"client": [
-		"FrameSamplerMixin"
-	],
-	"injectors": {
-		"defaultRequire": 1
-	},
-	"overwrites": {
-		"requireAnnotations": true
-	}
+  "required": true,
+  "package": "mcstats.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "FrameSamplerMixin",
+    "GuiStateAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
 }

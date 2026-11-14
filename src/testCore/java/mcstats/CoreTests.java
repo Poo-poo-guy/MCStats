@@ -15,6 +15,48 @@ public final class CoreTests {
     @FunctionalInterface private interface Checked{void run()throws Exception;}
     private static FrameWindow.Snapshot frames(double millis){double[] f=new double[1800];Arrays.fill(f,millis);return new FrameWindow.Snapshot(f,30);}
     public static void main(String[] args)throws Exception {
+        test("completed-frame rate at 60, 120, 230 and 1000 FPS",()->{
+            for(int fps:new int[]{60,120,230,1000}){
+                var r=new FrameRate();long t=1;
+                for(int i=0;i<=fps*2;i++){r.record(t);t+=Math.round(1e9/fps);}
+                near(r.publish(t),fps,.01);near(r.sessionFps(),fps,.01);
+            }
+        });
+        test("presentation polling cannot cap frame sampling",()->{
+            var r=new FrameRate();long t=1;
+            for(int i=0;i<2300;i++){r.record(t);if(i%58==0)r.publish(t);t+=Math.round(1e9/230);}
+            near(r.publish(t),230,.01);
+            r.reset();check(Double.isNaN(r.publish(t)),"reset");
+        });
+        test("rounded mesh and arcs emit correct winding and transparent coverage",()->{
+            for(double progress:new double[]{-1,0,.25,.5,1}){
+                java.util.List<float[]> points=new java.util.ArrayList<>();java.util.List<Integer> colors=new java.util.ArrayList<>();
+                var proxy=(com.mojang.blaze3d.vertex.VertexConsumer)java.lang.reflect.Proxy.newProxyInstance(CoreTests.class.getClassLoader(),new Class[]{com.mojang.blaze3d.vertex.VertexConsumer.class},(o,m,a)->{
+                    if(m.getName().equals("addVertexWith2DPose"))points.add(new float[]{(float)a[1],(float)a[2]});
+                    if(m.getName().equals("setColor")&&a.length==1)colors.add((int)a[0]);
+                    return o;
+                });
+                var shape=new mcstats.client.ui.SmoothShape(new org.joml.Matrix3x2f(),40,40,progress<0?80:4,progress<0?60:4,20,1,progress,0xff80ffff,null,null);
+                shape.buildVertices(proxy);
+                if(progress==0){check(points.isEmpty(),"zero progress draws nothing");continue;}
+                check(points.size()%4==0,"quad batching");check(colors.stream().anyMatch(c->c>>>24==0),"coverage fringe");
+                for(int i=0;i<points.size();i+=4){
+                    var a=points.get(i);var b=points.get(i+1);var c=points.get(i+2);
+                    double cross=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+                    check(cross<=.001,"native GUI winding");
+                }
+            }
+        });
+        test("short FPS window follows a real rate change",()->{
+            var r=new FrameRate();long t=1;
+            for(int i=0;i<230;i++){r.record(t);t+=Math.round(1e9/230);}
+            for(int i=0;i<120;i++){r.record(t);t+=Math.round(1e9/60);}
+            near(r.publish(t),60,.01);
+        });
+        test("legacy gauge profiles retain readable gauge dimensions",()->{
+            var c=HudConfig.decode("version=1\nwidget.0.metric=HEALTH\nwidget.0.style=GAUGE\nwidget.0.height=40");
+            check(c.widgets.getFirst().height>=120,"gauge label clipping");
+        });
         test("ring wraps and expires by elapsed time",()->{
             var w=new FrameWindow(3);for(int i=1;i<=5;i++)w.add(i*1_000_000_000L,i*10);
             check(Arrays.equals(w.snapshot(5_000_000_000L).frames(),new double[]{30,40,50}),"order");

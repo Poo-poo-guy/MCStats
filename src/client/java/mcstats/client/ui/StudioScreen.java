@@ -13,10 +13,18 @@ import java.nio.file.Path;
 
 public final class StudioScreen extends Screen {
     private final Screen previous;
+    private final mcstats.client.animation.Spring dashboardScore=new mcstats.client.animation.Spring(0);
+    private mcstats.client.metrics.FrameHealth.Category dashboardCategory;
+    private final mcstats.client.animation.Spring dashboardRed=new mcstats.client.animation.Spring(130),dashboardGreen=new mcstats.client.animation.Spring(219),dashboardBlue=new mcstats.client.animation.Spring(197);
+    private long dashboardTime=System.nanoTime();
     private int page, selected=-1, presetIndex, slot=1;
     private float scale=1;
     private int ox,oy;
     private String status="";
+    private static final String[] METRIC_LABELS={"FPS / 0.5 s","FRAME TIME","HEAP / MB","FRAMEHEALTH"};
+    private String[] metricValues=new String[4];
+    private String metricFooter="";
+    private long metricsAt;
     private boolean dragging,resizing,closing;
     private final mcstats.client.animation.Spring entrance=new mcstats.client.animation.Spring(0);
     private long lastAnimation=System.nanoTime();
@@ -55,11 +63,12 @@ public final class StudioScreen extends Screen {
             do { w.style=HudConfig.Style.values()[(w.style.ordinal()+1)%HudConfig.Style.values().length]; }
             while ((w.style==HudConfig.Style.GAUGE&&w.metric!=Metric.HEALTH)||(w.style==HudConfig.Style.GRAPH&&!hasGraph(w.metric)));
             if(w.style==HudConfig.Style.CARD||w.style==HudConfig.Style.GRAPH)w.height=Math.max(w.height,64);
+            if(w.style==HudConfig.Style.GAUGE){w.height=Math.max(w.height,120);w.width=Math.max(w.width,140);}
             rebuildWidgets();
         });
         button(372,328,164,"Scale: "+Hud.number(w.scale,""),()->{w.scale=w.scale>=2? .5:Math.round((w.scale+.25)*4)/4.;rebuildWidgets();});
         button(546,328,188,"Group: "+w.group,()->{w.group=(w.group+1)%5;rebuildWidgets();});
-        button(24,366,164,"Font: "+new String[]{"Sans","Medium","Mono","Serif"}[w.font],()->{w.font=(w.font+1)%4;rebuildWidgets();});
+        button(24,366,164,"Font: "+new String[]{"Sans","Medium","Mono","Compact"}[w.font],()->{w.font=(w.font+1)%4;rebuildWidgets();});
         button(198,366,164,"Padding: "+w.padding,()->{w.padding=w.padding>=24?2:w.padding+2;rebuildWidgets();});
         button(372,366,164,"Radius: "+w.radius,()->{w.radius=w.radius>=32?0:w.radius+4;rebuildWidgets();});
         button(546,366,188,"Opacity: "+Math.round(w.opacity*100)+"%",()->{w.opacity=w.opacity>=.99?.2:Math.min(1,w.opacity+.1);rebuildWidgets();});
@@ -102,6 +111,7 @@ public final class StudioScreen extends Screen {
         button(380,240,350,"Import profile from clipboard",()->{try{MCStatsClient.config=HudConfig.decode(minecraft.keyboardHandler.getClipboard());selected=-1;status="Profile imported";}catch(IOException ex){status="Import rejected: "+ex.getMessage();}});
     }
     @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float delta) {
+        long diagStart=mcstats.client.metrics.Diagnostics.begin(),diagBytes=mcstats.client.metrics.Diagnostics.allocated();
         if(page==1) {
             g.fill(0,0,width,height,0x40202a38); MCStatsClient.hud.draw(g,true);
             for(int i=0;i<c().widgets.size();i++) {
@@ -112,7 +122,7 @@ public final class StudioScreen extends Screen {
                     if(dragging&&c().snap){g.horizontalLine(0,width,b[1],0x6082dbc5);g.verticalLine(b[0],0,height,0x6082dbc5);}
                 }
             }
-        } else if(c().blur) { g.blurBeforeThisStratum(); }
+        }
         long now=System.nanoTime();
         double visibility=entrance.update(closing?0:1,(now-lastAnimation)/1e9,.25,c().reducedMotion);lastAnimation=now;
         Glass.opacity(visibility);
@@ -143,18 +153,35 @@ public final class StudioScreen extends Screen {
         if(!status.isEmpty())Glass.text(g,status.length()>95?status.substring(0,95):status,24,page==1?396:416,0xff82dbc5,0);
         g.pose().popMatrix();
         super.extractRenderState(g,mx,my,delta);
-        } finally { Glass.opacity(1); }
+        } finally { Glass.opacity(1);mcstats.client.metrics.Diagnostics.end(2,diagStart,diagBytes); }
     }
     private void overview(GuiGraphicsExtractor g) {
         var m=MCStatsClient.monitor;var h=m.health;
-        String[] labels={"FPS","FRAME TIME","HEAP / MB","FRAMEHEALTH"};
-        String[] values={Hud.number(m.frames.averageFps(),""),Hud.number(m.frameMillis," ms"),m.jvm==null?"Unavailable":Hud.number(m.jvm.heapUsed()/1048576.,""),h.available()?Math.round(h.score())+"  "+h.category():"Measuring…"};
+        if(System.nanoTime()-metricsAt>250_000_000L){metricsAt=System.nanoTime();
+        metricValues=new String[]{Hud.number(m.measuredFps,""),Hud.number(m.frameMillis," ms"),m.jvm==null?"Unavailable":Hud.number(m.jvm.heapUsed()/1048576.,""),h.available()?Math.round(h.score())+"  "+h.category():"Measuring…"};
+        metricFooter="1% low: "+Hud.number(m.frames.onePercentLowFps()," FPS")+"   Smoothed: "+Hud.number(m.smoothFps," FPS")+"   Ping: "+(m.ping<0?"Unavailable":m.ping+" ms");
+        }
         for(int i=0;i<4;i++) {
             int x=24+i*178;
             Glass.panel(g,x,112,166,132,12,Hud.background(c()),.8,true,true);
-            Glass.text(g,labels[i],x+12,124,Hud.foreground(c()),2);
-            Glass.text(g,values[i],x+12,146,0xff82dbc5,1);
-            Glass.graph(g,m.history[i],m.historyHead,m.historySize,x+12,173,140,54,0x82dbc5);
+            Glass.text(g,METRIC_LABELS[i],x+12,124,Hud.foreground(c()),2);
+            if(i==3){
+                long now=System.nanoTime();
+                double dt=(now-dashboardTime)/1e9;
+                double score=Math.clamp(dashboardScore.update(h.available()?h.score():0,dt,.3,c().reducedMotion),0,100);dashboardTime=now;
+                dashboardCategory=h.available()?mcstats.client.metrics.FrameHealth.classify(score,dashboardCategory):null;
+                int color=dashboardCategory==null?c().excellentColor:switch(dashboardCategory){case EXCELLENT->c().excellentColor;case GOOD->c().goodColor;case FAIR->c().fairColor;case POOR->c().poorColor;};
+                int animatedColor=((int)Math.clamp(dashboardRed.update((color>>16)&255,dt,.3,c().reducedMotion),0,255)<<16)
+                    |((int)Math.clamp(dashboardGreen.update((color>>8)&255,dt,.3,c().reducedMotion),0,255)<<8)
+                    |(int)Math.clamp(dashboardBlue.update(color&255,dt,.3,c().reducedMotion),0,255);
+                Glass.gauge(g,x+46,177,25,score/100,animatedColor);
+                Glass.centered(g,h.available()?""+Math.round(score):"—",x+46,171,Hud.foreground(c()),0);
+                Glass.graph(g,m.history[i],m.historyHead,m.historySize,x+84,166,70,38,0x82dbc5);
+                Glass.centered(g,h.available()?dashboardCategory.name():"Measuring…",x+83,217,Hud.foreground(c()),0);
+            }else{
+                Glass.text(g,metricValues[i],x+12,146,0xff82dbc5,1);
+                Glass.graph(g,m.history[i],m.historyHead,m.historySize,x+12,173,140,54,0x82dbc5);
+            }
         }
         Glass.text(g,"Why this score?",24,263,Hud.foreground(c()),1);
         if(h.available()) {
@@ -162,7 +189,7 @@ public final class StudioScreen extends Screen {
             Glass.text(g,"FPS target 25%      "+percent(h.target())+"      Severe stalls 10%    "+percent(h.stalls()),24,308,Hud.foreground(c()),0);
             Glass.text(g,h.stutterCount()+" stutters · "+h.stallCount()+" severe stalls · "+m.frames.count()+" samples · "+Hud.number(m.frames.seconds()," s observed"),24,330,Hud.foreground(c()),0);
         } else Glass.text(g,"Enter a world to collect at least one second of gameplay samples.",24,287,Hud.foreground(c()),0);
-        Glass.text(g,"1% low: "+Hud.number(m.frames.onePercentLowFps()," FPS")+"   Smoothed: "+Hud.number(m.smoothFps," FPS")+"   Ping: "+(m.ping<0?"Unavailable":m.ping+" ms"),24,355,Hud.foreground(c()),0);
+        Glass.text(g,metricFooter,24,355,Hud.foreground(c()),0);
         Glass.text(g,"Initial scoring model · rolling 30 s · latency excluded · GPU telemetry unavailable",24,387,Hud.foreground(c()),0);
     }
     private String percent(double n){return Math.round(n*100)+"%";}
@@ -181,7 +208,7 @@ public final class StudioScreen extends Screen {
     @Override public boolean mouseDragged(MouseButtonEvent e,double dx,double dy) {
         Widget w=selected();if(!dragging||w==null)return super.mouseDragged(e,dx,dy);
         dx=e.x()-lastX;dy=e.y()-lastY;lastX=e.x();lastY=e.y();
-        if(resizing){w.width=(int)Math.clamp(w.width+dx/w.scale,70,600);w.height=(int)Math.clamp(w.height+dy/w.scale,24,300);}
+        if(resizing){w.width=(int)Math.clamp(w.width+dx/w.scale,w.style==HudConfig.Style.GAUGE?140:70,600);w.height=(int)Math.clamp(w.height+dy/w.scale,w.style==HudConfig.Style.GAUGE?120:24,300);}
         else move(w,dx,dy);
         return true;
     }
@@ -204,6 +231,11 @@ public final class StudioScreen extends Screen {
             if(dx!=0||dy!=0){boolean snap=c().snap;c().snap=false;move(selected(),dx,dy);c().snap=snap;MCStatsClient.save();return true;}
         }
         return super.keyPressed(e);
+    }
+    @Override public void extractBackground(GuiGraphicsExtractor g,int mouseX,int mouseY,float delta) {
+        // Keep the native menu panorama; blur only the backdrop, never finished UI geometry or glyphs.
+        if(minecraft.level==null)extractPanorama(g,delta);
+        if(c().blur)g.blurBeforeThisStratum();
     }
     @Override public boolean isPauseScreen(){return false;}
     @Override public void tick(){super.tick();if(closing&&entrance.value()<.01)minecraft.gui.setScreen(previous);}

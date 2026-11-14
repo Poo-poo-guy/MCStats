@@ -95,6 +95,7 @@ public final class HudConfig {
                 w.radius = integer(p,k+"radius",12,0,32); w.padding = integer(p,k+"padding",10,2,24);
                 w.font = integer(p,k+"font",0,0,3); w.accent = integer(p,k+"accent",0x82dbc5,0,0xffffff);
                 w.border = bool(p,k+"border",true); w.group = integer(p,k+"group",0,0,32);
+                if(w.style==Style.GAUGE&&w.metric==Metric.HEALTH){w.width=Math.max(140,w.width);w.height=Math.max(120,w.height);}
                 c.widgets.add(w);
             }
             return c;
